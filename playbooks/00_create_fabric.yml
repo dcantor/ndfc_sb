@@ -1,0 +1,23 @@
+---
+# Stage 00 — create the External fabric that will hold the two core routers.
+# fabric_type "External" = light-touch fabric for managed routed/core devices that
+# are NOT part of a VXLAN EVPN fabric.
+- name: Create External fabric for the DC core
+  hosts: ndfc
+  gather_facts: false
+  vars_files:
+    - ../vault/secrets.yml
+    - ../fabric_vars/core_fabric.yml
+  tasks:
+    - name: Create/Update the External fabric
+      cisco.dcnm.dcnm_fabric:
+        state: merged
+        config:
+          - FABRIC_NAME: "{{ fabric.name }}"
+            FABRIC_TYPE: "{{ fabric.type }}"
+            BGP_AS: "{{ fabric.config.BGP_AS }}"
+      register: fabric_result
+
+    - name: Show fabric result
+      ansible.builtin.debug:
+        var: fabric_result

@@ -1,0 +1,16 @@
+---
+# Connection settings for the NDFC controller (group: ndfc).
+# Credentials come from the vault (vault/secrets.yml) — see ndfc_username/ndfc_password.
+ansible_connection: ansible.netcommon.httpapi
+ansible_network_os: cisco.dcnm.dcnm
+
+ansible_user: "{{ ndfc_username }}"
+ansible_password: "{{ ndfc_password }}"
+
+ansible_httpapi_use_ssl: true
+# Set to true once the controller presents a trusted certificate.
+ansible_httpapi_validate_certs: false
+ansible_httpapi_port: 443
+
+# Load the vault so ndfc_username / ndfc_password / device creds are available.
+# (Also pulled in explicitly by each playbook via vars_files for clarity.)

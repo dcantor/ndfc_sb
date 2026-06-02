@@ -1,0 +1,31 @@
+{#- Per-VRF BGP under "router bgp <asn>".  Rendered per switch.                   -#}
+{#- For each isolated VRF:                                                        -#}
+{#-   * eBGP toward the external VRF-Lite peer on the per-core sub-interface       -#}
+{#-   * a per-VRF iBGP session to the other core so the VRF's external routes      -#}
+{#-     transit core-to-core WITHOUT leaking into the global table                 -#}
+{#- Context vars: this_name, peer_name, this_switch, bgp, vrfs                     -#}
+!
+! ===== Per-VRF BGP (eBGP to peers + per-VRF iBGP between cores) =====
+router bgp {{ bgp.asn }}
+{% for vrf in vrfs %}
+{%   set me = vrf.per_core[this_name] %}
+  vrf {{ vrf.name }}
+    router-id {{ this_switch.loopback0.ip }}
+    address-family ipv4 unicast
+{%   for net in vrf.networks %}
+      network {{ net }}
+{%   endfor %}
+    ! eBGP toward the external peer on the VRF-Lite hand-off sub-interface
+    neighbor {{ me.ebgp_peer_ip }}
+      remote-as {{ me.ebgp_remote_as }}
+      description eBGP-{{ vrf.name }}-peer
+      address-family ipv4 unicast
+        route-map {{ vrf.route_maps.inbound }} in
+        route-map {{ vrf.route_maps.outbound }} out
+    ! per-VRF iBGP to the other core (keeps VRF routes off the global table)
+    neighbor {{ vrf.ibgp_peer_ip[this_name] }}
+      remote-as {{ bgp.asn }}
+      description iBGP-{{ vrf.name }}-to-{{ peer_name }}
+      address-family ipv4 unicast
+        next-hop-self
+{% endfor %}

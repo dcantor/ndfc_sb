@@ -1,0 +1,11 @@
+---
+# Install with:  ansible-galaxy collection install -r requirements.yml
+#
+# Pin the cisco.dcnm major version: fabric_type casing ("External") and link
+# template names ("ext_fabric_setup") are version-sensitive. Verify against the
+# NDFC release you target before the first run.
+collections:
+  - name: cisco.dcnm
+    version: ">=3.5.0,<4.0.0"
+  - name: ansible.netcommon
+    version: ">=5.0.0"

@@ -1,0 +1,15 @@
+---
+# External fabric definition consumed by playbooks/00_create_fabric.yml.
+#
+# fabric_type "External" = light-touch fabric for managed routed/core devices that
+# are NOT part of a VXLAN EVPN fabric. NDFC stores/deploys config (largely freeform)
+# but does not auto-generate an underlay/overlay.
+fabric:
+  name: "{{ fabric_name }}"
+  type: "External"
+  # Config knobs passed through to the External_Fabric template.
+  config:
+    BGP_AS: "{{ core_bgp_as }}"
+    FABRIC_MTU: "{{ default_mtu }}"
+    # Let NDFC own/deploy config rather than monitor-only.
+    FABRIC_FREEFORM: ""

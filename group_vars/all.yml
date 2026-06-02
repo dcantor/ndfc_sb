@@ -1,0 +1,16 @@
+---
+# Global defaults shared by every play.
+
+# Name of the External fabric that holds the two core routers.
+fabric_name: "DC-CORE"
+
+# Single BGP AS the two cores share (iBGP between them).
+core_bgp_as: 65000
+
+# Default routed MTU for fabric links / sub-interfaces.
+default_mtu: 9216
+
+# List of the core router host_vars keys (drives loops in the playbooks).
+core_switches:
+  - core1
+  - core2

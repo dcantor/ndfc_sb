@@ -1,0 +1,70 @@
+---
+# Stage 03 — links:
+#   * intra-fabric numbered P2P between the two cores (carries the global iBGP)
+#   * (optional) VRF-Lite inter-fabric links (ext_fabric_setup) toward a managed
+#     peer fabric — only run when vrf_lite_links is populated. If the eBGP peers
+#     are external/unmanaged, leave it empty: the per-VRF eBGP is still delivered
+#     by the freeform policy in stage 04 on the sub-interface.
+- name: Configure fabric links
+  hosts: ndfc
+  gather_facts: false
+  vars_files:
+    - ../vault/secrets.yml
+    - ../vars/vrfs.yml
+  vars:
+    # Populate to create VRF-Lite IFCs to a managed peer fabric. Each item:
+    #   peer_fabric, src_device, dst_device, src_interface, dst_interface,
+    #   src_ipv4, dst_ipv4, mask, dot1q
+    vrf_lite_links: []
+  tasks:
+    - name: Load per-core switch facts
+      ansible.builtin.include_vars:
+        file: "../host_vars/{{ item }}.yml"
+        name: "sw_{{ item }}"
+      loop: "{{ core_switches }}"
+
+    - name: Resolve core1 / core2 facts
+      ansible.builtin.set_fact:
+        c1: "{{ sw_core1.switch }}"
+        c2: "{{ sw_core2.switch }}"
+
+    - name: Intra-fabric numbered link core1 <-> core2 (global iBGP transit)
+      cisco.dcnm.dcnm_links:
+        state: merged
+        src_fabric: "{{ fabric_name }}"
+        config:
+          - dst_fabric: "{{ fabric_name }}"
+            src_device: "{{ c1.mgmt_ip }}"
+            dst_device: "{{ c2.mgmt_ip }}"
+            src_interface: "{{ c1.core_p2p.intf }}"
+            dst_interface: "{{ c2.core_p2p.intf }}"
+            template: int_intra_fabric_num_link
+            profile:
+              peer1_ipv4_addr: "{{ c1.core_p2p.ipv4 }}"
+              peer2_ipv4_addr: "{{ c2.core_p2p.ipv4 }}"
+              peer1_ipv4_mask_len: "{{ c1.core_p2p.mask }}"
+              peer2_ipv4_mask_len: "{{ c2.core_p2p.mask }}"
+              mtu: "{{ default_mtu }}"
+              admin_state: true
+      register: intra_link
+
+    - name: VRF-Lite inter-fabric links (ext_fabric_setup) — optional
+      cisco.dcnm.dcnm_links:
+        state: merged
+        src_fabric: "{{ fabric_name }}"
+        config:
+          - dst_fabric: "{{ item.peer_fabric }}"
+            src_device: "{{ item.src_device }}"
+            dst_device: "{{ item.dst_device }}"
+            src_interface: "{{ item.src_interface }}"
+            dst_interface: "{{ item.dst_interface }}"
+            template: ext_fabric_setup
+            profile:
+              ipv4_addr: "{{ item.src_ipv4 }}"
+              neighbor_ip: "{{ item.dst_ipv4 }}"
+              ipv4_mask_len: "{{ item.mask }}"
+              mtu: "{{ default_mtu }}"
+      loop: "{{ vrf_lite_links }}"
+      loop_control:
+        label: "{{ item.src_device }} {{ item.src_interface }} -> {{ item.peer_fabric }}"
+      when: vrf_lite_links | length > 0

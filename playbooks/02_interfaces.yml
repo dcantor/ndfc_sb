@@ -1,0 +1,84 @@
+---
+# Stage 02 — interfaces on the cores:
+#   * loopback0          (global VRF) — router-id / iBGP source
+#   * core-to-core P2P   (global VRF) — carries the global iBGP session
+#   * per-VRF sub-ints   (VRF Lite hand-off toward external eBGP peers)
+- name: Configure core router interfaces
+  hosts: ndfc
+  gather_facts: false
+  vars_files:
+    - ../vault/secrets.yml
+    - ../vars/vrfs.yml
+  tasks:
+    - name: Load per-core switch facts
+      ansible.builtin.include_vars:
+        file: "../host_vars/{{ item }}.yml"
+        name: "sw_{{ item }}"
+      loop: "{{ core_switches }}"
+
+    - name: Build flat list of core switch dicts
+      ansible.builtin.set_fact:
+        core_inventory: "{{ core_inventory | default([]) + [(lookup('vars', 'sw_' ~ item)).switch] }}"
+      loop: "{{ core_switches }}"
+
+    - name: Configure loopback0 (global VRF, router-id / iBGP source)
+      cisco.dcnm.dcnm_interface:
+        fabric: "{{ fabric_name }}"
+        state: merged
+        config:
+          - name: "loopback0"
+            type: "lo"
+            switch:
+              - "{{ item.mgmt_ip }}"
+            deploy: true
+            profile:
+              mode: "lo"
+              int_vrf: ""                       # default / global VRF
+              ipv4_addr: "{{ item.loopback0.ip }}"
+              ipv4_mask_len: "{{ item.loopback0.mask }}"
+      loop: "{{ core_inventory }}"
+      loop_control:
+        label: "{{ item.name }} loopback0"
+
+    - name: Configure core-to-core P2P (global VRF, carries global iBGP)
+      cisco.dcnm.dcnm_interface:
+        fabric: "{{ fabric_name }}"
+        state: merged
+        config:
+          - name: "{{ item.core_p2p.intf }}"
+            type: "eth"
+            switch:
+              - "{{ item.mgmt_ip }}"
+            deploy: true
+            profile:
+              mode: "routed"
+              int_vrf: ""                       # default / global VRF
+              ipv4_addr: "{{ item.core_p2p.ipv4 }}"
+              ipv4_mask_len: "{{ item.core_p2p.mask }}"
+              mtu: "{{ default_mtu }}"
+      loop: "{{ core_inventory }}"
+      loop_control:
+        label: "{{ item.name }} {{ item.core_p2p.intf }} -> {{ item.core_p2p.peer }}"
+
+    - name: Configure per-VRF VRF-Lite sub-interfaces
+      cisco.dcnm.dcnm_interface:
+        fabric: "{{ fabric_name }}"
+        state: merged
+        config:
+          - name: "{{ sub.intf }}.{{ sub.subintf_id }}"
+            type: "sub_int"
+            switch:
+              - "{{ item.0.mgmt_ip }}"
+            deploy: true
+            profile:
+              mode: "subint"
+              int_vrf: "{{ item.1.name }}"      # places the sub-int in the VRF
+              ipv4_addr: "{{ sub.ipv4 }}"
+              ipv4_mask_len: "{{ sub.mask }}"
+              vlan: "{{ sub.dot1q }}"
+              mtu: "{{ default_mtu }}"
+      vars:
+        sub: "{{ item.1.per_core[item.0.name] }}"
+      loop: "{{ core_inventory | product(vrfs) | list }}"
+      loop_control:
+        label: "{{ item.0.name }} {{ item.1.name }} {{ item.1.per_core[item.0.name].intf }}.{{ item.1.per_core[item.0.name].subintf_id }}"

@@ -1,0 +1,17 @@
+# Real secrets — never commit. Use vault/secrets.yml.example as the template and
+# encrypt your working copy with ansible-vault.
+vault/secrets.yml
+
+# Installed collections (pull with: ansible-galaxy collection install -r requirements.yml)
+collections/
+
+# Ansible runtime artifacts
+*.retry
+.vault_pass
+*.log
+
+# Python / editor cruft
+__pycache__/
+*.pyc
+.DS_Store
+.venv/

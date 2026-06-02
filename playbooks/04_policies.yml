@@ -1,0 +1,54 @@
+---
+# Stage 04 — the workhorse. Render the Jinja2 freeform templates per core and push
+# them as switch_freeform policies via dcnm_policy. This delivers everything NDFC's
+# External fabric will not auto-generate:
+#   * vrf context for each isolated VRF (NO route-target import/export)
+#   * global router bgp + iBGP between cores
+#   * per-VRF address-families: eBGP to peers + per-VRF iBGP between cores
+#
+# Idempotency: each policy uses a stable `description`. dcnm_policy keys on it, so
+# re-runs update the existing policy instead of creating duplicates.
+- name: Push BGP + VRF freeform policies
+  hosts: ndfc
+  gather_facts: false
+  vars_files:
+    - ../vault/secrets.yml
+    - ../vars/bgp.yml
+    - ../vars/vrfs.yml
+  tasks:
+    - name: Load per-core switch facts
+      ansible.builtin.include_vars:
+        file: "../host_vars/{{ item }}.yml"
+        name: "sw_{{ item }}"
+      loop: "{{ core_switches }}"
+
+    - name: Render + push freeform per core
+      vars:
+        this_name: "{{ item }}"
+        peer_name: "{{ core_switches | difference([item]) | first }}"
+        this_switch: "{{ (lookup('vars', 'sw_' ~ item)).switch }}"
+        peer_switch: "{{ (lookup('vars', 'sw_' ~ (core_switches | difference([item]) | first))).switch }}"
+        freeform_conf: "{{ lookup('template', '../templates/vrf_context.j2') ~ '\n'
+          ~ lookup('template', '../templates/bgp_global.j2') ~ '\n'
+          ~ lookup('template', '../templates/bgp_vrf_af.j2') }}"
+      cisco.dcnm.dcnm_policy:
+        fabric: "{{ fabric_name }}"
+        state: merged
+        config:
+          - name: switch_freeform
+            create_additional_policy: false      # update existing on re-run
+            priority: 500
+            description: "ndfc_sb BGP+VRF freeform ({{ this_name }})"
+            policy_vars:
+              CONF: "{{ freeform_conf }}"
+        deploy: true                             # push the routing config to the switch
+        switch:
+          - ip: "{{ this_switch.mgmt_ip }}"
+      loop: "{{ core_switches }}"
+      loop_control:
+        label: "{{ item }}"
+      register: policy_result
+
+    - name: Show policy result
+      ansible.builtin.debug:
+        var: policy_result

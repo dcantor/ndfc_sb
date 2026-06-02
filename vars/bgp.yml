@@ -1,0 +1,22 @@
+---
+# Global BGP facts (the per-VRF eBGP detail lives in vars/vrfs.yml).
+#
+# iBGP runs in the GLOBAL/default address-family between the two cores, peering on
+# loopback0. router-id is each core's loopback0. The eBGP peers are per-VRF.
+
+bgp:
+  asn: "{{ core_bgp_as }}"
+
+  # The two cores form a trivial iBGP full-mesh. Each entry below is "the other core"
+  # from the perspective of the core whose host_vars references it. We build the mesh
+  # generically in templates/bgp_global.j2 from the per-host loopbacks, so this section
+  # only needs global knobs.
+  ibgp:
+    update_source: "loopback0"
+    next_hop_self: true
+    # password: "{{ vault_ibgp_password | default('') }}"   # optional, add to vault
+
+  # Networks advertised into the GLOBAL table (loopbacks / infra). Per-VRF networks
+  # are defined in vars/vrfs.yml.
+  global_networks:
+    - "10.255.255.0/24"

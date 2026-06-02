@@ -1,0 +1,22 @@
+---
+# Full deployment, in order. Run with:
+#   ansible-playbook playbooks/site.yml --ask-vault-pass
+#
+# Individual stages can also be run standalone (playbooks/00_create_fabric.yml, ...).
+- name: 00 — Create the External fabric
+  import_playbook: 00_create_fabric.yml
+
+- name: 01 — Add the core routers to inventory
+  import_playbook: 01_add_inventory.yml
+
+- name: 02 — Configure interfaces (loopback, P2P, VRF-Lite sub-ints)
+  import_playbook: 02_interfaces.yml
+
+- name: 03 — Configure fabric links
+  import_playbook: 03_links.yml
+
+- name: 04 — Push BGP + VRF freeform policies
+  import_playbook: 04_policies.yml
+
+- name: 05 — Confirm deployment
+  import_playbook: 05_deploy.yml
