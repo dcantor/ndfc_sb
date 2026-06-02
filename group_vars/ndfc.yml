@@ -12,5 +12,12 @@ ansible_httpapi_use_ssl: true
 ansible_httpapi_validate_certs: false
 ansible_httpapi_port: 443
 
+# Authentication login domain.
+#   - NDFC 12.x (ND 2.x/3.x): "local" (or your configured AAA domain).
+#   - Nexus Dashboard 4.x (unified ND, Fabric Controller persona): still required;
+#     set to "local" or the remote AAA domain configured on ND.
+# Requires cisco.dcnm >= 3.9.0 for ND 4.1 (httpapi support added in 3.9.0).
+ansible_httpapi_login_domain: "local"
+
 # Load the vault so ndfc_username / ndfc_password / device creds are available.
 # (Also pulled in explicitly by each playbook via vars_files for clarity.)

@@ -52,7 +52,11 @@ playbooks/00..05 + site.yml  ordered deployment
 
 ## Prerequisites
 
-- NDFC 12.x on Nexus Dashboard 3.x (reachable controller VIP).
+- A reachable controller VIP, either:
+  - **NDFC 12.2.x** on Nexus Dashboard 2.x/3.x, or
+  - **Nexus Dashboard 4.x** (unified ND — the Fabric Controller is now a persona of ND,
+    not a separate 12.x service). Validated target is ND 4.1.1g via the legacy APIs.
+    Requires `cisco.dcnm >= 3.9.0` and `ansible_httpapi_login_domain` set (see below).
 - The two N9K cores already onboarded to ND/NDFC reachability (mgmt IP + credentials).
 - `ansible-core >= 2.15`, Python `requests`.
 - `ansible-galaxy collection install -r requirements.yml`
@@ -101,6 +105,13 @@ Individual stages can be run on their own (`playbooks/00_create_fabric.yml`, etc
 
 1. `cisco.dcnm` 3.x assumed. `fabric_type` casing (`External`) and link template names
    (`ext_fabric_setup`) are version-sensitive — verify on your release.
+   - **Nexus Dashboard 4.x:** there is no "NDFC 4.x" — NDFC was 12.x; ND 4.x is the
+     converged platform that absorbs the Fabric Controller. The `cisco.dcnm` modules
+     still drive it through the **legacy API** layer (added in collection 3.9.0), so the
+     playbooks here work unchanged *provided* you bump the collection (`>=3.9.0`) and set
+     `ansible_httpapi_login_domain`. ND 4.0 specifically is pre-migration/early; 4.1.1g is
+     the validated target. For ND platform-level onboarding you may also want the companion
+     `cisco.nd` collection.
 2. The External fabric is light-touch: NDFC stores/deploys freeform but does **not** validate
    BGP correctness. Policy `description` keys are kept stable so re-runs stay idempotent.
 3. Upstream/downstream eBGP peers are assumed external to this fabric. If they are also
