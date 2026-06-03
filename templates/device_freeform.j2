@@ -30,16 +30,19 @@
 !
 feature bgp
 feature bfd
+feature ospf
 !
 ! ===== Interfaces =====
 interface loopback0
   description router-id / global iBGP+eBGP source
   ip address {{ me.lo0 }}/32
+  ip router ospf {{ ospf.process }} area {{ ospf.area }}
 {% for vrf in vrfs %}
 interface loopback{{ vrf.loopback_id }}
   description {{ vrf.name }} BGP source
   vrf member {{ vrf.name }}
   ip address {{ me.vrf_lo[vrf.name] }}/32
+  ip router ospf {{ ospf.process }} area {{ ospf.area }}
 {% endfor %}
 {% for o in ns.links %}
 interface {{ o.my_intf }}
@@ -48,6 +51,11 @@ interface {{ o.my_intf }}
   mtu {{ mtu }}
   ip address {{ o.my_ip }}/{{ o.mask }}
   bfd interval {{ bfd.interval }} min_rx {{ bfd.min_rx }} multiplier {{ bfd.multiplier }}
+{%-  if o.type == 'intra' %}
+  ip router ospf {{ ospf.process }} area {{ ospf.area }}
+  ip ospf network point-to-point
+  ip ospf bfd
+{%-  endif %}
   no shutdown
 {%   for vrf in vrfs %}
 {%-    set su = o.subifs[vrf.name] %}
@@ -58,6 +66,11 @@ interface {{ o.my_intf }}.{{ su.dot1q }}
   vrf member {{ vrf.name }}
   ip address {{ my_su_ip }}/{{ su.mask }}
   bfd interval {{ bfd.interval }} min_rx {{ bfd.min_rx }} multiplier {{ bfd.multiplier }}
+{%-    if o.type == 'intra' %}
+  ip router ospf {{ ospf.process }} area {{ ospf.area }}
+  ip ospf network point-to-point
+  ip ospf bfd
+{%-    endif %}
   no shutdown
 {%   endfor %}
 {% endfor %}
@@ -70,13 +83,23 @@ vrf context {{ vrf.name }}
   address-family ipv4 unicast
 {% endfor %}
 !
-! ===== Static routes for loopback-based peering (BGP-only; ECMP intra-DC) =====
-{% for o in ns.links %}
+! ===== OSPF — intra-DC IGP for iBGP loopback reachability (global + per-VRF) =====
+! Runs only on intra-DC links (ECMP over the 2 links); BFD-enabled (ip ospf bfd).
+router ospf {{ ospf.process }}
+  router-id {{ me.lo0 }}
+{% for vrf in vrfs %}
+  vrf {{ vrf.name }}
+    router-id {{ me.vrf_lo[vrf.name] }}
+{% endfor %}
+!
+! ===== Static routes — INTER-DC loopback reachability only (eBGP multihop) =====
+! Intra-DC loopback reachability is handled by OSPF above.
+{% for o in ns.links if o.type == 'inter' %}
 ip route {{ devices[o.peer].lo0 }}/32 {{ o.peer_ip }}
 {% endfor %}
 {% for vrf in vrfs %}
 vrf context {{ vrf.name }}
-{%   for o in ns.links %}
+{%   for o in ns.links if o.type == 'inter' %}
 {%-    set su = o.subifs[vrf.name] %}
 {%-    set peer_su_ip = su.b_ip if o.side == 'a' else su.a_ip %}
   ip route {{ devices[o.peer].vrf_lo[vrf.name] }}/32 {{ peer_su_ip }}

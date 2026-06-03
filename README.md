@@ -26,10 +26,13 @@ Controller) using the `cisco.dcnm` collection.
 ## Design
 
 - **Loopback-based BGP.** Global table peers on `loopback0`; each VRF peers on its own
-  loopback (`loopback1`=VRF_A, `loopback2`=VRF_B). Loopback reachability is provided by
-  **static routes** (BGP-only, no IGP); over the two intra-DC links these are **ECMP**, so
-  a session survives either link failing. Inter-DC eBGP is loopback-to-loopback
-  (`ebgp-multihop 2`).
+  loopback (`loopback1`=VRF_A, `loopback2`=VRF_B).
+- **Intra-DC loopback reachability = OSPF.** A single OSPF process (`UNDERLAY`) runs on the
+  two intra-DC links in the global table **and** in a context per VRF, so every intra-DC
+  iBGP loopback (global + per-VRF) is reachable dynamically, ECMP over both links. OSPF runs
+  point-to-point with **`ip ospf bfd`** on each link. It does **not** run on the DCI.
+- **Inter-DC loopback reachability = static routes.** The DCI eBGP is loopback-to-loopback
+  (`ebgp-multihop 2`), reached by a static route per peer over the DCI link.
 - **BFD everywhere.** `feature bfd`, a `bfd interval` on every L3 link and sub-interface,
   and `bfd` on every BGP neighbor.
 - **VRF isolation.** Each VRF has its own loopback, its own dot1q sub-interfaces, its own
@@ -60,7 +63,7 @@ vault/secrets.yml(.example)    NDFC creds + device creds (real file gitignored)
 fabric_vars/core_fabric.yml    External fabric definition
 vars/topology.yml              ★ single source of truth: 4 devices, ASNs, all links/sub-ints
 vars/vrfs.yml                  the 2 isolated VRFs (loopback id, RD, networks, route-maps)
-vars/bgp.yml                   BFD timers, eBGP multihop TTL
+vars/bgp.yml                   BFD timers, eBGP multihop TTL, OSPF process/area
 templates/device_freeform.j2   ★ generates each device's full CLI from the topology
 playbooks/00_create_fabric     dcnm_fabric  → External fabric
 playbooks/01_add_inventory     dcnm_inventory → 4 cores as core_router
@@ -113,10 +116,12 @@ Individual stages can be run on their own (`playbooks/00_create_fabric.yml`, etc
 - In NDFC: fabric created, all four cores in `core_router` role, freeform policies
   attached, deploy succeeded.
 - On a switch:
-  - `show ip bgp summary` — intra-DC iBGP (global) up; `show bfd neighbors` — sessions Up.
+  - `show ip ospf neighbors` / `show ip ospf neighbors vrf VRF_A` — OSPF adjacencies up on
+    both intra-DC links (global + per VRF); `show bfd neighbors` — OSPF and BGP BFD sessions Up.
+  - `show ip route 10.255.1.2` — peer `loopback0` learned via OSPF, ECMP over both intra links.
+  - `show ip bgp summary` — intra-DC iBGP (global) up.
   - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — per-VRF iBGP (intra-DC) and eBGP
     (inter-DC) up.
-  - `show ip route 10.255.x.x` — ECMP statics to the peer loopback over both intra-DC links.
   - `show running-config | section 'vrf context'` — **no** `route-target import/export`
     (isolation confirmed).
 

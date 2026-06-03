@@ -12,3 +12,11 @@ bfd:
 # eBGP loopback peering across the DCI is multihop (loopback-to-loopback over a
 # directly-connected link). TTL of 2 is sufficient for the square topology.
 ebgp_multihop_ttl: 2
+
+# OSPF is the intra-DC IGP that makes iBGP loopbacks reachable (global table +
+# one context per VRF), replacing the intra-DC static routes. It runs ONLY on
+# intra-DC links; inter-DC reachability stays on static routes (eBGP multihop).
+# BFD is enabled for OSPF on those links (ip ospf bfd).
+ospf:
+  process: "UNDERLAY"
+  area: "0.0.0.0"
