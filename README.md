@@ -31,8 +31,10 @@ Controller) using the `cisco.dcnm` collection.
   two intra-DC links in the global table **and** in a context per VRF, so every intra-DC
   iBGP loopback (global + per-VRF) is reachable dynamically, ECMP over both links. OSPF runs
   point-to-point with **`ip ospf bfd`** on each link. It does **not** run on the DCI.
-- **Inter-DC loopback reachability = static routes.** The DCI eBGP is loopback-to-loopback
-  (`ebgp-multihop 2`), reached by a static route per peer over the DCI link.
+- **Inter-DC eBGP = directly-connected addresses.** DCI eBGP peers on the **real** DCI link
+  address (global) and the per-VRF DCI sub-interface address (single-hop) — **loopbacks are
+  used only for intra-DC iBGP**. No `ebgp-multihop`, no static routes. eBGP-learned routes
+  propagate within a DC via iBGP `next-hop-self`.
 - **BFD everywhere.** `feature bfd`, a `bfd interval` on every L3 link and sub-interface,
   and `bfd` on every BGP neighbor.
 - **VRF isolation.** Each VRF has its own loopback, its own dot1q sub-interfaces, its own
@@ -132,9 +134,10 @@ It needs no controller or credentials. The output directory is gitignored by def
   - `show ip ospf neighbors` / `show ip ospf neighbors vrf VRF_A` — OSPF adjacencies up on
     both intra-DC links (global + per VRF); `show bfd neighbors` — OSPF and BGP BFD sessions Up.
   - `show ip route 10.255.1.2` — peer `loopback0` learned via OSPF, ECMP over both intra links.
-  - `show ip bgp summary` — intra-DC iBGP (global) up.
-  - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — per-VRF iBGP (intra-DC) and eBGP
-    (inter-DC) up.
+  - `show ip bgp summary` — intra-DC iBGP (global, on loopbacks) up, and inter-DC eBGP
+    (global, on the DCI link address) up.
+  - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — per-VRF iBGP (intra-DC, loopbacks) and
+    eBGP (inter-DC, on the DCI sub-interface address) up.
   - `show running-config | section 'vrf context'` — **no** `route-target import/export`
     (isolation confirmed).
 

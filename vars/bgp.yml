@@ -9,9 +9,9 @@ bfd:
   min_rx: 300         # min rx interval (ms)
   multiplier: 3       # detect-multiplier
 
-# eBGP loopback peering across the DCI is multihop (loopback-to-loopback over a
-# directly-connected link). TTL of 2 is sufficient for the square topology.
-ebgp_multihop_ttl: 2
+# Inter-DC eBGP peers on the directly-connected DCI addresses (single-hop), so no
+# ebgp-multihop and no static routes are needed. Loopbacks are used only for the
+# intra-DC iBGP sessions.
 
 # OSPF is the intra-DC IGP that makes iBGP loopbacks reachable (global table +
 # one context per VRF), replacing the intra-DC static routes. It runs ONLY on

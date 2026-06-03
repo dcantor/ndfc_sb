@@ -8,12 +8,13 @@
 #   DC2 (AS 65002): dc2-core1, dc2-core2   — iBGP, 2 links between them
 #   Inter-DC (eBGP, "square"): dc1-core1<->dc2-core1, dc1-core2<->dc2-core2
 #
-# All BGP is loopback-based:
+# Intra-DC iBGP is loopback-based:
 #   * global table  -> loopback0
 #   * each VRF      -> its own loopback (loopback_id from vars/vrfs.yml)
-# Loopback reachability is provided by static routes (BGP-only, no IGP); over the
-# 2 intra-DC links these are ECMP. BFD is enabled on every transit link/sub-int
-# and on every BGP neighbor.
+# Those loopbacks are made reachable by OSPF (ECMP over the 2 intra-DC links).
+# Inter-DC eBGP peers on the directly-connected DCI link/sub-interface addresses
+# (single-hop) — loopbacks are NOT used for eBGP. BFD is enabled on every transit
+# link/sub-int and on every BGP neighbor.
 # ============================================================================
 
 datacenters:

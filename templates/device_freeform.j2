@@ -9,7 +9,7 @@
 {%- set my_dc = me.dc -%}
 {%- set my_asn = datacenters[my_dc].asn -%}
 {#- Orient every link that touches this device into a "my side / peer side" view -#}
-{%- set ns = namespace(links=[], peers=[]) -%}
+{%- set ns = namespace(links=[], intra_peers=[]) -%}
 {%- for link in links if link.a == dev or link.b == dev -%}
 {%-   if link.a == dev -%}
 {%-     set o = {'type': link.type, 'my_intf': link.a_intf, 'my_ip': link.a_ip,
@@ -21,7 +21,7 @@
                  'subifs': link.subifs, 'side': 'b'} -%}
 {%-   endif -%}
 {%-   set ns.links = ns.links + [o] -%}
-{%-   if o.peer not in ns.peers -%}{%- set ns.peers = ns.peers + [o.peer] -%}{%- endif -%}
+{%-   if o.type == 'intra' and o.peer not in ns.intra_peers -%}{%- set ns.intra_peers = ns.intra_peers + [o.peer] -%}{%- endif -%}
 {%- endfor -%}
 !
 ! ##########################################################################
@@ -34,7 +34,7 @@ feature ospf
 !
 ! ===== Interfaces =====
 interface loopback0
-  description router-id / global iBGP+eBGP source
+  description router-id / intra-DC iBGP source
   ip address {{ me.lo0 }}/32
   ip router ospf {{ ospf.process }} area {{ ospf.area }}
 {% for vrf in vrfs %}
@@ -92,19 +92,8 @@ router ospf {{ ospf.process }}
     router-id {{ me.vrf_lo[vrf.name] }}
 {% endfor %}
 !
-! ===== Static routes — INTER-DC loopback reachability only (eBGP multihop) =====
-! Intra-DC loopback reachability is handled by OSPF above.
-{% for o in ns.links if o.type == 'inter' %}
-ip route {{ devices[o.peer].lo0 }}/32 {{ o.peer_ip }}
-{% endfor %}
-{% for vrf in vrfs %}
-vrf context {{ vrf.name }}
-{%   for o in ns.links if o.type == 'inter' %}
-{%-    set su = o.subifs[vrf.name] %}
-{%-    set peer_su_ip = su.b_ip if o.side == 'a' else su.a_ip %}
-  ip route {{ devices[o.peer].vrf_lo[vrf.name] }}/32 {{ peer_su_ip }}
-{%   endfor %}
-{% endfor %}
+! No static routes: intra-DC loopback reachability is via OSPF; inter-DC eBGP
+! peers on the directly-connected DCI addresses.
 !
 ! ===== BGP =====
 router bgp {{ my_asn }}
@@ -112,21 +101,23 @@ router bgp {{ my_asn }}
   log-neighbor-changes
   address-family ipv4 unicast
     network {{ me.lo0 }}/32
-{% for peer in ns.peers %}
-{%-  set is_ibgp = devices[peer].dc == my_dc %}
-  ! {{ 'iBGP (intra-DC)' if is_ibgp else 'eBGP (inter-DC)' }} to {{ peer }}
+{% for peer in ns.intra_peers %}
+  ! iBGP (intra-DC) to {{ peer }} — loopback peering (reachable via OSPF)
   neighbor {{ devices[peer].lo0 }}
-    remote-as {{ datacenters[devices[peer].dc].asn }}
-    description {{ 'iBGP' if is_ibgp else 'eBGP' }}-to-{{ peer }}
+    remote-as {{ my_asn }}
+    description iBGP-to-{{ peer }}
     update-source loopback0
     bfd
-{%-  if not is_ibgp %}
-    ebgp-multihop {{ ebgp_multihop_ttl }}
-{%-  endif %}
     address-family ipv4 unicast
-{%-  if is_ibgp %}
       next-hop-self
-{%-  endif %}
+{% endfor %}
+{% for o in ns.links if o.type == 'inter' %}
+  ! eBGP (inter-DC) to {{ o.peer }} — directly-connected DCI address (single-hop)
+  neighbor {{ o.peer_ip }}
+    remote-as {{ datacenters[devices[o.peer].dc].asn }}
+    description eBGP-to-{{ o.peer }}
+    bfd
+    address-family ipv4 unicast
 {% endfor %}
 {% for vrf in vrfs %}
   ! ----- {{ vrf.name }} -----
@@ -137,22 +128,26 @@ router bgp {{ my_asn }}
 {%   for n in vrf.networks %}
       network {{ n }}
 {%   endfor %}
-{%   for peer in ns.peers %}
-{%-    set is_ibgp = devices[peer].dc == my_dc %}
+{%   for peer in ns.intra_peers %}
+    ! iBGP (intra-DC) {{ vrf.name }} to {{ peer }} — loopback peering (via OSPF)
     neighbor {{ devices[peer].vrf_lo[vrf.name] }}
-      remote-as {{ datacenters[devices[peer].dc].asn }}
-      description {{ 'iBGP' if is_ibgp else 'eBGP' }}-{{ vrf.name }}-to-{{ peer }}
+      remote-as {{ my_asn }}
+      description iBGP-{{ vrf.name }}-to-{{ peer }}
       update-source loopback{{ vrf.loopback_id }}
       bfd
-{%-    if not is_ibgp %}
-      ebgp-multihop {{ ebgp_multihop_ttl }}
-{%-    endif %}
       address-family ipv4 unicast
-{%-    if is_ibgp %}
         next-hop-self
-{%-    else %}
+{%   endfor %}
+{%   for o in ns.links if o.type == 'inter' %}
+{%-    set su = o.subifs[vrf.name] %}
+{%-    set peer_su_ip = su.b_ip if o.side == 'a' else su.a_ip %}
+    ! eBGP (inter-DC) {{ vrf.name }} to {{ o.peer }} — directly-connected sub-int (single-hop)
+    neighbor {{ peer_su_ip }}
+      remote-as {{ datacenters[devices[o.peer].dc].asn }}
+      description eBGP-{{ vrf.name }}-to-{{ o.peer }}
+      bfd
+      address-family ipv4 unicast
         route-map {{ vrf.route_maps.inbound }} in
         route-map {{ vrf.route_maps.outbound }} out
-{%-    endif %}
 {%   endfor %}
 {% endfor %}
