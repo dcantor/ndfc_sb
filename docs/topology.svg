@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="660" viewBox="0 0 1040 660" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="gRouter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3aa6c9"/>
+      <stop offset="1" stop-color="#0e6f8e"/>
+    </linearGradient>
+    <linearGradient id="gSwitch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b8def"/>
+      <stop offset="1" stop-color="#2a5bd7"/>
+    </linearGradient>
+    <linearGradient id="gDC1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3f8fc"/>
+      <stop offset="1" stop-color="#e7f0f8"/>
+    </linearGradient>
+
+    <!-- Router icon: teal cylinder + two opposing arrows -->
+    <symbol id="router" viewBox="0 0 84 52" overflow="visible">
+      <ellipse cx="42" cy="26" rx="40" ry="22" fill="url(#gRouter)" stroke="#063a4d" stroke-width="1.5"/>
+      <path d="M24 22 H44 V17 L55 26 L44 35 V30 H24 Z" fill="#ffffff" opacity="0.95"/>
+      <path d="M60 30 H40 V35 L29 26 L40 17 V22 H60 Z" fill="#ffffff" opacity="0.55"/>
+    </symbol>
+
+    <!-- Switch icon: blue box + 4-way arrows -->
+    <symbol id="switch" viewBox="0 0 84 52" overflow="visible">
+      <rect x="6" y="10" width="72" height="32" rx="5" fill="url(#gSwitch)" stroke="#0a276a" stroke-width="1.5"/>
+      <path d="M45 24 H53 V21 L59 26 L53 31 V28 H45 Z" fill="#fff"/>
+      <path d="M39 24 H31 V21 L25 26 L31 31 V28 H39 Z" fill="#fff"/>
+      <path d="M40 24 V18 H37 L42 12 L47 18 H44 V24 Z" fill="#fff"/>
+      <path d="M40 28 V34 H37 L42 40 L47 34 H44 V28 Z" fill="#fff"/>
+    </symbol>
+  </defs>
+
+  <rect x="0" y="0" width="1040" height="660" fill="#ffffff"/>
+  <text x="520" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#1b2a3a">
+    Nexus 9000 DC Core — BGP + VRF Lite (no VXLAN/EVPN)
+  </text>
+
+  <!-- DC group boxes -->
+  <rect x="48"  y="60" width="404" height="500" rx="14" fill="url(#gDC1)" stroke="#9cc0db" stroke-width="1.5"/>
+  <rect x="588" y="60" width="404" height="500" rx="14" fill="url(#gDC1)" stroke="#9cc0db" stroke-width="1.5"/>
+  <text x="250" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="#27506e">DATA CENTER 1 — core AS 65001</text>
+  <text x="790" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="#27506e">DATA CENTER 2 — core AS 65002</text>
+
+  <!-- ===================== LINKS (drawn under icons) ===================== -->
+  <!-- Intra-DC iBGP + OSPF (2 links each) -->
+  <g stroke="#2e9b57" stroke-width="3">
+    <line x1="192" y1="146" x2="288" y2="146"/>
+    <line x1="192" y1="158" x2="288" y2="158"/>
+    <line x1="752" y1="146" x2="848" y2="146"/>
+    <line x1="752" y1="158" x2="848" y2="158"/>
+  </g>
+  <text x="240" y="128" text-anchor="middle" font-size="11" fill="#1f7a43">2× iBGP · OSPF · BFD</text>
+  <text x="800" y="128" text-anchor="middle" font-size="11" fill="#1f7a43">2× iBGP · OSPF · BFD</text>
+
+  <!-- Inter-DC eBGP (square): core1<->core1, core2<->core2 -->
+  <g stroke="#e08a1e" stroke-width="3" fill="none">
+    <path d="M192 150 Q 430 52 668 150"/>
+    <path d="M372 150 Q 610 250 848 150"/>
+  </g>
+  <text x="520" y="44" text-anchor="middle" font-size="12" font-weight="600" fill="#b96d0d">eBGP inter-DC (square) · BFD</text>
+  <text x="520" y="232" text-anchor="middle" font-size="11" fill="#b96d0d">core1↔core1 · core2↔core2</text>
+
+  <!-- Downstream VRF-Lite eBGP full mesh -->
+  <g stroke="#2a5bd7" stroke-width="2.2">
+    <!-- DC1 -->
+    <line x1="150" y1="178" x2="150" y2="430"/>
+    <line x1="150" y1="178" x2="330" y2="430"/>
+    <line x1="330" y1="178" x2="150" y2="430"/>
+    <line x1="330" y1="178" x2="330" y2="430"/>
+    <!-- DC2 -->
+    <line x1="710" y1="178" x2="710" y2="430"/>
+    <line x1="710" y1="178" x2="890" y2="430"/>
+    <line x1="890" y1="178" x2="710" y2="430"/>
+    <line x1="890" y1="178" x2="890" y2="430"/>
+  </g>
+  <text x="250" y="312" text-anchor="middle" font-size="11" font-weight="600" fill="#2a5bd7">4× eBGP VRF-Lite</text>
+  <text x="250" y="326" text-anchor="middle" font-size="10" fill="#2a5bd7">(per-VRF + global) · BFD</text>
+  <text x="790" y="312" text-anchor="middle" font-size="11" font-weight="600" fill="#2a5bd7">4× eBGP VRF-Lite</text>
+  <text x="790" y="326" text-anchor="middle" font-size="10" fill="#2a5bd7">(per-VRF + global) · BFD</text>
+
+  <!-- ===================== NODES ===================== -->
+  <!-- Core routers -->
+  <use href="#router" x="108" y="124" width="84" height="52"/>
+  <use href="#router" x="288" y="124" width="84" height="52"/>
+  <use href="#router" x="668" y="124" width="84" height="52"/>
+  <use href="#router" x="848" y="124" width="84" height="52"/>
+  <!-- Downstream DC core switches (external) -->
+  <use href="#switch" x="108" y="434" width="84" height="52"/>
+  <use href="#switch" x="288" y="434" width="84" height="52"/>
+  <use href="#switch" x="668" y="434" width="84" height="52"/>
+  <use href="#switch" x="848" y="434" width="84" height="52"/>
+
+  <!-- Node labels -->
+  <g font-size="12.5" font-weight="600" fill="#1b2a3a" text-anchor="middle">
+    <text x="150" y="196">dc1-core1</text>
+    <text x="330" y="196">dc1-core2</text>
+    <text x="710" y="196">dc2-core1</text>
+    <text x="890" y="196">dc2-core2</text>
+  </g>
+  <g font-size="12" font-weight="600" fill="#1b2a3a" text-anchor="middle">
+    <text x="150" y="506">dc1-ds1</text>
+    <text x="330" y="506">dc1-ds2</text>
+    <text x="710" y="506">dc2-ds1</text>
+    <text x="890" y="506">dc2-ds2</text>
+  </g>
+  <g font-size="10.5" fill="#6a7c8c" text-anchor="middle">
+    <text x="250" y="524">downstream DC core switches — AS 65011 (external)</text>
+    <text x="790" y="524">downstream DC core switches — AS 65021 (external)</text>
+  </g>
+
+  <!-- ===================== LEGEND ===================== -->
+  <g font-size="12" fill="#33414f">
+    <line x1="70"  y1="600" x2="104" y2="600" stroke="#2e9b57" stroke-width="3"/>
+    <text x="112" y="604">iBGP + OSPF (intra-DC, ×2 links)</text>
+    <line x1="360" y1="600" x2="394" y2="600" stroke="#e08a1e" stroke-width="3"/>
+    <text x="402" y="604">eBGP (inter-DC, square)</text>
+    <line x1="610" y1="600" x2="644" y2="600" stroke="#2a5bd7" stroke-width="2.2"/>
+    <text x="652" y="604">eBGP VRF-Lite hand-off (downstream, full mesh)</text>
+  </g>
+  <text x="70" y="632" font-size="12" fill="#6a7c8c">
+    All BGP neighbors BFD-enabled · loopback iBGP / link-address eBGP · VRF_A &amp; VRF_B fully isolated (no route-target import/export)
+  </text>
+</svg>

@@ -1,0 +1,72 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="ndfc-sb-topology" name="DC Core Topology">
+    <mxGraphModel dx="1100" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- DC group boxes -->
+        <mxCell id="dc1box" value="DATA CENTER 1 — core AS 65001" style="rounded=1;arcSize=6;fillColor=#eef5fb;strokeColor=#9cc0db;verticalAlign=top;fontSize=14;fontStyle=1;fontColor=#27506e;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="420" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc2box" value="DATA CENTER 2 — core AS 65002" style="rounded=1;arcSize=6;fillColor=#eef5fb;strokeColor=#9cc0db;verticalAlign=top;fontSize=14;fontStyle=1;fontColor=#27506e;" vertex="1" parent="1">
+          <mxGeometry x="620" y="60" width="420" height="520" as="geometry"/>
+        </mxCell>
+
+        <!-- Core routers -->
+        <mxCell id="dc1c1" value="dc1-core1" style="sketch=0;outlineConnect=0;html=1;fillColor=#0e6f8e;strokeColor=#063a4d;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.routers.router;" vertex="1" parent="1">
+          <mxGeometry x="110" y="120" width="70" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc1c2" value="dc1-core2" style="sketch=0;outlineConnect=0;html=1;fillColor=#0e6f8e;strokeColor=#063a4d;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.routers.router;" vertex="1" parent="1">
+          <mxGeometry x="290" y="120" width="70" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc2c1" value="dc2-core1" style="sketch=0;outlineConnect=0;html=1;fillColor=#0e6f8e;strokeColor=#063a4d;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.routers.router;" vertex="1" parent="1">
+          <mxGeometry x="700" y="120" width="70" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc2c2" value="dc2-core2" style="sketch=0;outlineConnect=0;html=1;fillColor=#0e6f8e;strokeColor=#063a4d;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.routers.router;" vertex="1" parent="1">
+          <mxGeometry x="880" y="120" width="70" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Downstream DC core switches (external) -->
+        <mxCell id="dc1d1" value="dc1-ds1" style="sketch=0;outlineConnect=0;html=1;fillColor=#2a5bd7;strokeColor=#0a276a;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.switches.layer_3_switch;" vertex="1" parent="1">
+          <mxGeometry x="110" y="430" width="70" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc1d2" value="dc1-ds2" style="sketch=0;outlineConnect=0;html=1;fillColor=#2a5bd7;strokeColor=#0a276a;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.switches.layer_3_switch;" vertex="1" parent="1">
+          <mxGeometry x="290" y="430" width="70" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc2d1" value="dc2-ds1" style="sketch=0;outlineConnect=0;html=1;fillColor=#2a5bd7;strokeColor=#0a276a;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.switches.layer_3_switch;" vertex="1" parent="1">
+          <mxGeometry x="700" y="430" width="70" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="dc2d2" value="dc2-ds2" style="sketch=0;outlineConnect=0;html=1;fillColor=#2a5bd7;strokeColor=#0a276a;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;fontStyle=1;shape=mxgraph.cisco.switches.layer_3_switch;" vertex="1" parent="1">
+          <mxGeometry x="880" y="430" width="70" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Intra-DC iBGP + OSPF (x2 links) -->
+        <mxCell id="e_i1" value="2× iBGP · OSPF · BFD" style="endArrow=none;html=1;strokeColor=#2e9b57;strokeWidth=3;fontSize=10;fontColor=#1f7a43;" edge="1" parent="1" source="dc1c1" target="dc1c2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_i2" value="2× iBGP · OSPF · BFD" style="endArrow=none;html=1;strokeColor=#2e9b57;strokeWidth=3;fontSize=10;fontColor=#1f7a43;" edge="1" parent="1" source="dc2c1" target="dc2c2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- Inter-DC eBGP (square) -->
+        <mxCell id="e_e1" value="eBGP inter-DC · BFD" style="endArrow=none;html=1;strokeColor=#e08a1e;strokeWidth=3;curved=1;fontSize=10;fontColor=#b96d0d;" edge="1" parent="1" source="dc1c1" target="dc2c1"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="430" y="70"/><mxPoint x="650" y="70"/></Array></mxGeometry></mxCell>
+        <mxCell id="e_e2" value="" style="endArrow=none;html=1;strokeColor=#e08a1e;strokeWidth=3;curved=1;" edge="1" parent="1" source="dc1c2" target="dc2c2"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="430" y="250"/><mxPoint x="650" y="250"/></Array></mxGeometry></mxCell>
+
+        <!-- Downstream VRF-Lite eBGP (full mesh) -->
+        <mxCell id="e_d1" value="eBGP VRF-Lite (per-VRF + global) · BFD" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;fontSize=10;fontColor=#2a5bd7;" edge="1" parent="1" source="dc1c1" target="dc1d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d2" value="" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;" edge="1" parent="1" source="dc1c1" target="dc1d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d3" value="" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;" edge="1" parent="1" source="dc1c2" target="dc1d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d4" value="" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;" edge="1" parent="1" source="dc1c2" target="dc1d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d5" value="eBGP VRF-Lite (per-VRF + global) · BFD" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;fontSize=10;fontColor=#2a5bd7;" edge="1" parent="1" source="dc2c1" target="dc2d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d6" value="" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;" edge="1" parent="1" source="dc2c1" target="dc2d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d7" value="" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;" edge="1" parent="1" source="dc2c2" target="dc2d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_d8" value="" style="endArrow=none;html=1;strokeColor=#2a5bd7;strokeWidth=2;" edge="1" parent="1" source="dc2c2" target="dc2d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- Downstream AS labels -->
+        <mxCell id="ds1lbl" value="downstream DC core switches — AS 65011 (external)" style="text;html=1;align=center;fontSize=10;fontColor=#6a7c8c;" vertex="1" parent="1"><mxGeometry x="90" y="500" width="320" height="20" as="geometry"/></mxCell>
+        <mxCell id="ds2lbl" value="downstream DC core switches — AS 65021 (external)" style="text;html=1;align=center;fontSize=10;fontColor=#6a7c8c;" vertex="1" parent="1"><mxGeometry x="650" y="500" width="320" height="20" as="geometry"/></mxCell>
+
+        <!-- Title + note -->
+        <mxCell id="title" value="Nexus 9000 DC Core — BGP + VRF Lite (no VXLAN/EVPN)" style="text;html=1;align=center;fontSize=18;fontStyle=1;fontColor=#1b2a3a;" vertex="1" parent="1"><mxGeometry x="270" y="14" width="560" height="30" as="geometry"/></mxCell>
+        <mxCell id="note" value="All BGP neighbors BFD-enabled · loopback iBGP / link-address eBGP · VRF_A &amp; VRF_B fully isolated (no route-target import/export)" style="text;html=1;align=left;fontSize=11;fontColor=#6a7c8c;" vertex="1" parent="1"><mxGeometry x="40" y="600" width="960" height="20" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

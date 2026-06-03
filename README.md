@@ -6,16 +6,11 @@ Controller) using the `cisco.dcnm` collection.
 
 ## Topology
 
-```
-        DC1 (AS 65001)                         DC2 (AS 65002)
-   ┌───────────────────┐                  ┌───────────────────┐
-   │  dc1-core1 ═══════ dc1-core2          dc2-core1 ═══════ dc2-core2  │
-   │      │   (2 links, iBGP)                  (2 links, iBGP)   │      │
-   └──────┼────────────────────┘          └──────────┼─────────┘
-          │                                           │
-          └──────────── eBGP (DCI, square) ───────────┘
-         dc1-core1↔dc2-core1   and   dc1-core2↔dc2-core2
-```
+![Network topology](docs/topology.svg)
+
+> Diagram source: [docs/topology.drawio](docs/topology.drawio) — open/edit at
+> [diagrams.net](https://app.diagrams.net) (File → Open). Re-export to
+> `docs/topology.svg` after edits to refresh the image above.
 
 - **2 devices per DC**, with **2 links** between the pair, **iBGP** peered.
 - **eBGP between the data centers**, "square" DCI (2 links: core1↔core1, core2↔core2).
