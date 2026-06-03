@@ -1,0 +1,135 @@
+{#- =========================================================================== -#}
+{#- Per-device freeform CLI for one core router. Rendered once per device and    -#}
+{#- pushed as a switch_freeform policy (playbooks/02_config.yml).                 -#}
+{#- Everything is derived from vars/topology.yml + vars/vrfs.yml + vars/bgp.yml.  -#}
+{#-                                                                               -#}
+{#- Context: dev (this device name), devices, datacenters, links, vrfs, bfd, mtu  -#}
+{#- =========================================================================== -#}
+{%- set me = devices[dev] -%}
+{%- set my_dc = me.dc -%}
+{%- set my_asn = datacenters[my_dc].asn -%}
+{#- Orient every link that touches this device into a "my side / peer side" view -#}
+{%- set ns = namespace(links=[], peers=[]) -%}
+{%- for link in links if link.a == dev or link.b == dev -%}
+{%-   if link.a == dev -%}
+{%-     set o = {'type': link.type, 'my_intf': link.a_intf, 'my_ip': link.a_ip,
+                 'peer': link.b, 'peer_ip': link.b_ip, 'mask': link.mask,
+                 'subifs': link.subifs, 'side': 'a'} -%}
+{%-   else -%}
+{%-     set o = {'type': link.type, 'my_intf': link.b_intf, 'my_ip': link.b_ip,
+                 'peer': link.a, 'peer_ip': link.a_ip, 'mask': link.mask,
+                 'subifs': link.subifs, 'side': 'b'} -%}
+{%-   endif -%}
+{%-   set ns.links = ns.links + [o] -%}
+{%-   if o.peer not in ns.peers -%}{%- set ns.peers = ns.peers + [o.peer] -%}{%- endif -%}
+{%- endfor -%}
+!
+! ##########################################################################
+! # {{ dev }}  (DC {{ my_dc }}, AS {{ my_asn }})  — generated, do not hand-edit
+! ##########################################################################
+!
+feature bgp
+feature bfd
+!
+! ===== Interfaces =====
+interface loopback0
+  description router-id / global iBGP+eBGP source
+  ip address {{ me.lo0 }}/32
+{% for vrf in vrfs %}
+interface loopback{{ vrf.loopback_id }}
+  description {{ vrf.name }} BGP source
+  vrf member {{ vrf.name }}
+  ip address {{ me.vrf_lo[vrf.name] }}/32
+{% endfor %}
+{% for o in ns.links %}
+interface {{ o.my_intf }}
+  description {{ o.type }} link to {{ o.peer }}
+  no switchport
+  mtu {{ mtu }}
+  ip address {{ o.my_ip }}/{{ o.mask }}
+  bfd interval {{ bfd.interval }} min_rx {{ bfd.min_rx }} multiplier {{ bfd.multiplier }}
+  no shutdown
+{%   for vrf in vrfs %}
+{%-    set su = o.subifs[vrf.name] %}
+{%-    set my_su_ip = su.a_ip if o.side == 'a' else su.b_ip %}
+interface {{ o.my_intf }}.{{ su.dot1q }}
+  description {{ vrf.name }} {{ o.type }} hand-off to {{ o.peer }}
+  encapsulation dot1q {{ su.dot1q }}
+  vrf member {{ vrf.name }}
+  ip address {{ my_su_ip }}/{{ su.mask }}
+  bfd interval {{ bfd.interval }} min_rx {{ bfd.min_rx }} multiplier {{ bfd.multiplier }}
+  no shutdown
+{%   endfor %}
+{% endfor %}
+!
+! ===== VRF contexts (fully isolated — NO route-target import/export) =====
+{% for vrf in vrfs %}
+vrf context {{ vrf.name }}
+  description {{ vrf.description }}
+  rd {{ my_asn }}:{{ vrf.rd_index }}
+  address-family ipv4 unicast
+{% endfor %}
+!
+! ===== Static routes for loopback-based peering (BGP-only; ECMP intra-DC) =====
+{% for o in ns.links %}
+ip route {{ devices[o.peer].lo0 }}/32 {{ o.peer_ip }}
+{% endfor %}
+{% for vrf in vrfs %}
+vrf context {{ vrf.name }}
+{%   for o in ns.links %}
+{%-    set su = o.subifs[vrf.name] %}
+{%-    set peer_su_ip = su.b_ip if o.side == 'a' else su.a_ip %}
+  ip route {{ devices[o.peer].vrf_lo[vrf.name] }}/32 {{ peer_su_ip }}
+{%   endfor %}
+{% endfor %}
+!
+! ===== BGP =====
+router bgp {{ my_asn }}
+  router-id {{ me.lo0 }}
+  log-neighbor-changes
+  address-family ipv4 unicast
+    network {{ me.lo0 }}/32
+{% for peer in ns.peers %}
+{%-  set is_ibgp = devices[peer].dc == my_dc %}
+  ! {{ 'iBGP (intra-DC)' if is_ibgp else 'eBGP (inter-DC)' }} to {{ peer }}
+  neighbor {{ devices[peer].lo0 }}
+    remote-as {{ datacenters[devices[peer].dc].asn }}
+    description {{ 'iBGP' if is_ibgp else 'eBGP' }}-to-{{ peer }}
+    update-source loopback0
+    bfd
+{%-  if not is_ibgp %}
+    ebgp-multihop {{ ebgp_multihop_ttl }}
+{%-  endif %}
+    address-family ipv4 unicast
+{%-  if is_ibgp %}
+      next-hop-self
+{%-  endif %}
+{% endfor %}
+{% for vrf in vrfs %}
+  ! ----- {{ vrf.name }} -----
+  vrf {{ vrf.name }}
+    router-id {{ me.vrf_lo[vrf.name] }}
+    address-family ipv4 unicast
+      network {{ me.vrf_lo[vrf.name] }}/32
+{%   for n in vrf.networks %}
+      network {{ n }}
+{%   endfor %}
+{%   for peer in ns.peers %}
+{%-    set is_ibgp = devices[peer].dc == my_dc %}
+    neighbor {{ devices[peer].vrf_lo[vrf.name] }}
+      remote-as {{ datacenters[devices[peer].dc].asn }}
+      description {{ 'iBGP' if is_ibgp else 'eBGP' }}-{{ vrf.name }}-to-{{ peer }}
+      update-source loopback{{ vrf.loopback_id }}
+      bfd
+{%-    if not is_ibgp %}
+      ebgp-multihop {{ ebgp_multihop_ttl }}
+{%-    endif %}
+      address-family ipv4 unicast
+{%-    if is_ibgp %}
+        next-hop-self
+{%-    else %}
+        route-map {{ vrf.route_maps.inbound }} in
+        route-map {{ vrf.route_maps.outbound }} out
+{%-    endif %}
+{%   endfor %}
+{% endfor %}

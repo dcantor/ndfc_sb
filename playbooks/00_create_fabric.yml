@@ -15,7 +15,7 @@
         config:
           - FABRIC_NAME: "{{ fabric.name }}"
             FABRIC_TYPE: "{{ fabric.type }}"
-            BGP_AS: "{{ fabric.config.BGP_AS }}"
+            BGP_AS: "{{ fabric_bgp_as }}"
       register: fabric_result
 
     - name: Show fabric result

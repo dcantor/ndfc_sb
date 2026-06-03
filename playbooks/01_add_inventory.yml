@@ -1,38 +1,28 @@
 ---
-# Stage 01 — discover/add the two N9K cores into the External fabric as core_router.
-# Switches are added by mgmt IP; NDFC manages them by serial thereafter.
+# Stage 01 — discover/add all four N9K cores into the External fabric as core_router.
+# Devices are added by mgmt IP; NDFC manages them by serial thereafter.
 - name: Add core routers to the fabric
   hosts: ndfc
   gather_facts: false
   vars_files:
     - ../vault/secrets.yml
+    - ../vars/topology.yml
   tasks:
-    - name: Load per-core switch facts
-      ansible.builtin.include_vars:
-        file: "../host_vars/{{ item }}.yml"
-        name: "sw_{{ item }}"
-      loop: "{{ core_switches }}"
-
-    - name: Build flat list of core switch dicts
-      ansible.builtin.set_fact:
-        core_inventory: "{{ core_inventory | default([]) + [(lookup('vars', 'sw_' ~ item)).switch] }}"
-      loop: "{{ core_switches }}"
-
-    - name: Add core routers (role core_router)
+    - name: Add the four core routers (role core_router)
       cisco.dcnm.dcnm_inventory:
         fabric: "{{ fabric_name }}"
         state: merged
         config:
-          - seed_ip: "{{ item.mgmt_ip }}"
+          - seed_ip: "{{ devices[item].mgmt_ip }}"
             auth_proto: MD5
             user_name: "{{ device_username }}"
             password: "{{ device_password }}"
             max_hops: 0
-            role: "{{ item.role }}"
+            role: core_router
             preserve_config: true     # do not wipe existing switch config on import
-      loop: "{{ core_inventory }}"
+      loop: "{{ devices.keys() | list }}"
       loop_control:
-        label: "{{ item.name }} ({{ item.mgmt_ip }})"
+        label: "{{ item }} ({{ devices[item].mgmt_ip }})"
       register: inv_result
 
     - name: Show inventory result

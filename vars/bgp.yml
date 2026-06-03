@@ -1,22 +1,14 @@
 ---
-# Global BGP facts (the per-VRF eBGP detail lives in vars/vrfs.yml).
-#
-# iBGP runs in the GLOBAL/default address-family between the two cores, peering on
-# loopback0. router-id is each core's loopback0. The eBGP peers are per-VRF.
+# Global BGP / BFD knobs. AS numbers are per-DC (see vars/topology.yml:datacenters);
+# per-device router-ids and neighbors are derived from the topology.
 
-bgp:
-  asn: "{{ core_bgp_as }}"
+# BFD timers applied to every transit link / sub-interface and enabled on every
+# BGP neighbor ("BFD for BGP for all links"). Tune for your platform/SLA.
+bfd:
+  interval: 300       # tx interval (ms)
+  min_rx: 300         # min rx interval (ms)
+  multiplier: 3       # detect-multiplier
 
-  # The two cores form a trivial iBGP full-mesh. Each entry below is "the other core"
-  # from the perspective of the core whose host_vars references it. We build the mesh
-  # generically in templates/bgp_global.j2 from the per-host loopbacks, so this section
-  # only needs global knobs.
-  ibgp:
-    update_source: "loopback0"
-    next_hop_self: true
-    # password: "{{ vault_ibgp_password | default('') }}"   # optional, add to vault
-
-  # Networks advertised into the GLOBAL table (loopbacks / infra). Per-VRF networks
-  # are defined in vars/vrfs.yml.
-  global_networks:
-    - "10.255.255.0/24"
+# eBGP loopback peering across the DCI is multihop (loopback-to-loopback over a
+# directly-connected link). TTL of 2 is sufficient for the square topology.
+ebgp_multihop_ttl: 2

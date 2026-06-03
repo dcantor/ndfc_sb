@@ -1,52 +1,20 @@
 ---
-# The two VRF-Lite VRFs. FULLY ISOLATED: each has its own RD and dedicated
-# sub-interfaces, and NO route-target import/export is ever emitted (see
-# templates/vrf_context.j2). There is no shared-services leaking between them.
+# The two VRF-Lite VRFs, extended end-to-end across both data centers.
+# FULLY ISOLATED: each VRF has its own loopback, its own dot1q sub-interfaces,
+# its own RD, and NO route-target import/export — so the two VRFs never exchange
+# routes (see templates/device_freeform.j2, "VRF contexts" section).
 #
-# Per VRF:
-#   name           VRF name on the switch.
-#   rd             route-distinguisher (RD differs per VRF; with no RT import/export
-#                  the RD only namespaces the VRF's NLRI — it does NOT cause leaking).
-#   description    free text.
-#   per_core       per-core VRF-Lite hand-off sub-interface toward the external peer:
-#                    intf           parent physical interface
-#                    subintf_id     sub-interface number
-#                    dot1q          VLAN tag on the sub-interface
-#                    ipv4 / mask    sub-interface address (this core side)
-#                    ebgp_peer_ip   external neighbor address on this sub-interface
-#                    ebgp_remote_as external neighbor AS (eBGP)
-#   ibgp_peer_ip   per_core map of "the iBGP address to reach the OTHER core inside
-#                  this VRF" — carries the VRF's external routes core-to-core without
-#                  touching the global table. Uses the VRF sub-interface subnet.
-#   networks       prefixes originated into this VRF.
-#   route_maps     inbound/outbound policy names applied to the eBGP neighbor
-#                  (scoped to this VRF only; never reference the other VRF).
-
+#   loopback_id : loopback interface number used for this VRF's BGP peering
+#                 (loopback0 is the global table). Must be unique per VRF.
+#   rd_index    : RD is rendered per device as "<local-asn>:<rd_index>".
+#   networks    : prefixes originated into this VRF.
+#   route_maps  : inbound/outbound policy applied to eBGP (inter-DC) neighbors,
+#                 scoped to this VRF only — never references the other VRF.
 vrfs:
   - name: "VRF_A"
-    rd: "65000:10"
+    loopback_id: 1
+    rd_index: 10
     description: "Tenant A — isolated"
-    per_core:
-      core1:
-        intf: "Ethernet1/10"
-        subintf_id: 10
-        dot1q: 10
-        ipv4: "172.16.10.1"
-        mask: 30
-        ebgp_peer_ip: "172.16.10.2"
-        ebgp_remote_as: 65010
-      core2:
-        intf: "Ethernet1/10"
-        subintf_id: 10
-        dot1q: 10
-        ipv4: "172.16.10.5"
-        mask: 30
-        ebgp_peer_ip: "172.16.10.6"
-        ebgp_remote_as: 65010
-    # iBGP between the two cores inside VRF_A (transit subnet between cores in this VRF).
-    ibgp_peer_ip:
-      core1: "172.16.10.10"     # address core1 uses to reach core2 in VRF_A
-      core2: "172.16.10.9"      # address core2 uses to reach core1 in VRF_A
     networks:
       - "10.10.0.0/16"
     route_maps:
@@ -54,28 +22,9 @@ vrfs:
       outbound: "RM_VRF_A_OUT"
 
   - name: "VRF_B"
-    rd: "65000:20"
+    loopback_id: 2
+    rd_index: 20
     description: "Tenant B — isolated"
-    per_core:
-      core1:
-        intf: "Ethernet1/11"
-        subintf_id: 20
-        dot1q: 20
-        ipv4: "172.16.20.1"
-        mask: 30
-        ebgp_peer_ip: "172.16.20.2"
-        ebgp_remote_as: 65020
-      core2:
-        intf: "Ethernet1/11"
-        subintf_id: 20
-        dot1q: 20
-        ipv4: "172.16.20.5"
-        mask: 30
-        ebgp_peer_ip: "172.16.20.6"
-        ebgp_remote_as: 65020
-    ibgp_peer_ip:
-      core1: "172.16.20.10"
-      core2: "172.16.20.9"
     networks:
       - "10.20.0.0/16"
     route_maps:

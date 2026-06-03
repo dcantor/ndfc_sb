@@ -1,0 +1,28 @@
+---
+# Stage 03 — confirm/redeploy.
+# Stage 02 already deploys each device's freeform policy (deploy: true). This stage
+# queries the deployed policies as an idempotent confirmation that config reached
+# all four cores.
+- name: Confirm deployment to the cores
+  hosts: ndfc
+  gather_facts: false
+  vars_files:
+    - ../vault/secrets.yml
+    - ../vars/topology.yml
+  tasks:
+    - name: Query the per-device freeform policies
+      cisco.dcnm.dcnm_policy:
+        fabric: "{{ fabric_name }}"
+        state: query
+        config:
+          - description: "ndfc_sb device config ({{ item }})"
+        switch:
+          - ip: "{{ devices[item].mgmt_ip }}"
+      loop: "{{ devices.keys() | list }}"
+      loop_control:
+        label: "{{ item }}"
+      register: deploy_confirm
+
+    - name: Show deployed policy state
+      ansible.builtin.debug:
+        var: deploy_confirm

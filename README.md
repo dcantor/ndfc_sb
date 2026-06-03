@@ -1,70 +1,92 @@
 # ndfc_sb — Nexus 9000 core routers via NDFC (BGP + VRF Lite, no VXLAN)
 
-Ansible project that deploys a pair of Cisco Nexus 9000 **data-center core routers**
-through **Cisco NDFC** (Nexus Dashboard Fabric Controller) using the `cisco.dcnm`
-collection.
+Ansible project that deploys **four** Cisco Nexus 9000 **data-center core routers**
+(two per data center, across two DCs) through **Cisco NDFC** (Nexus Dashboard Fabric
+Controller) using the `cisco.dcnm` collection.
+
+## Topology
+
+```
+        DC1 (AS 65001)                         DC2 (AS 65002)
+   ┌───────────────────┐                  ┌───────────────────┐
+   │  dc1-core1 ═══════ dc1-core2          dc2-core1 ═══════ dc2-core2  │
+   │      │   (2 links, iBGP)                  (2 links, iBGP)   │      │
+   └──────┼────────────────────┘          └──────────┼─────────┘
+          │                                           │
+          └──────────── eBGP (DCI, square) ───────────┘
+         dc1-core1↔dc2-core1   and   dc1-core2↔dc2-core2
+```
+
+- **2 devices per DC**, with **2 links** between the pair, **iBGP** peered.
+- **eBGP between the data centers**, "square" DCI (2 links: core1↔core1, core2↔core2).
+- **BFD for BGP on every link** (and every BGP neighbor).
+- **Two VRFs via VRF Lite, fully isolated**, extended end-to-end across both DCs.
+- **No EVPN / no VXLAN** — plain IP routing only.
 
 ## Design
 
-- **No EVPN / no VXLAN** — plain IP routing only.
-- Everything is driven **through NDFC** (`cisco.dcnm`), not direct SSH/NX-API.
-- **BGP:** single AS, **iBGP between the two cores**, **eBGP toward upstream/downstream peers**.
-- **Two VRFs via VRF Lite, fully isolated** — no route leaking between them.
+- **Loopback-based BGP.** Global table peers on `loopback0`; each VRF peers on its own
+  loopback (`loopback1`=VRF_A, `loopback2`=VRF_B). Loopback reachability is provided by
+  **static routes** (BGP-only, no IGP); over the two intra-DC links these are **ECMP**, so
+  a session survives either link failing. Inter-DC eBGP is loopback-to-loopback
+  (`ebgp-multihop 2`).
+- **BFD everywhere.** `feature bfd`, a `bfd interval` on every L3 link and sub-interface,
+  and `bfd` on every BGP neighbor.
+- **VRF isolation.** Each VRF has its own loopback, its own dot1q sub-interfaces, its own
+  RD, and **no `route-target import/export`** — so the two VRFs never exchange routes.
 
-### Why these choices
+### Why these NDFC choices
 
-- **Fabric type = `External`.** This is the correct light-touch NDFC fabric for managed
+- **Fabric type = `External`** — the correct light-touch NDFC fabric for managed
   routed/core devices that are *not* part of a VXLAN EVPN fabric. (`BGP` fabric_type is an
   eBGP-routed VXLAN underlay; `LAN_CLASSIC` is L2 access/aggregation — both wrong here.)
-- **`dcnm_vrf` / `dcnm_network` are VXLAN-EVPN-only and are deliberately NOT used.** On an
-  External fabric all `vrf context` + `router bgp` config is delivered as **freeform switch
-  policies via `dcnm_policy`**, rendered from the Jinja2 templates in `templates/`.
+- **`dcnm_vrf` / `dcnm_network` are VXLAN-EVPN-only and are NOT used.** On an External
+  fabric **all device config** — interfaces, loopbacks, sub-interfaces, BFD, VRF contexts,
+  static routes and BGP — is delivered as a single **`switch_freeform` policy per device**
+  (`dcnm_policy`), rendered from [templates/device_freeform.j2](templates/device_freeform.j2).
+  This is more reliable than wrangling `dcnm_interface`/`dcnm_links` for a topology this size.
 - **Switches are not SSH inventory hosts.** The only Ansible inventory host is the NDFC
-  controller, reached via `ansible.netcommon.httpapi`. Modules fan out to switches by mgmt
-  IP / serial.
-
-### Routing model
-
-- **iBGP** in the global address-family between the two cores (peer on loopbacks).
-- **eBGP** inside each VRF's `address-family ipv4 unicast` toward the external peer.
-- A **per-VRF iBGP session** between the two cores carries each VRF's external routes
-  core-to-core without leaking into the global table.
-- **Isolation:** each VRF has its own RD and dedicated sub-interface, and the `vrf context`
-  templates contain **no `route-target import/export`**.
+  controller (`ansible.netcommon.httpapi`); modules fan out to switches by mgmt IP / serial.
 
 ## Layout
 
 ```
-ansible.cfg                  inventory path, conn timeouts
-requirements.yml             cisco.dcnm + ansible.netcommon (pinned)
-inventory/hosts.yml          single host: the NDFC controller
-group_vars/all.yml           fabric_name, core_bgp_as, common defaults
-group_vars/ndfc.yml          httpapi connection vars
-vault/secrets.yml            NDFC creds + per-switch device creds (ansible-vault)
-fabric_vars/core_fabric.yml  External fabric definition
-host_vars/core1.yml          per-core: mgmt IP, serial, loopback, links, sub-int IPs
-host_vars/core2.yml
-vars/vrfs.yml                the 2 isolated VRFs
-vars/bgp.yml                 AS, router-ids, peer tables
-templates/*.j2               freeform CLI: vrf context, bgp global, per-VRF AF
-playbooks/00..05 + site.yml  ordered deployment
+ansible.cfg                    inventory path, conn timeouts
+requirements.yml               cisco.dcnm + ansible.netcommon (pinned)
+inventory/hosts.yml            single host: the NDFC controller
+group_vars/all.yml             fabric_name, fabric_bgp_as, default_mtu
+group_vars/ndfc.yml            httpapi connection vars (+ login_domain)
+vault/secrets.yml(.example)    NDFC creds + device creds (real file gitignored)
+fabric_vars/core_fabric.yml    External fabric definition
+vars/topology.yml              ★ single source of truth: 4 devices, ASNs, all links/sub-ints
+vars/vrfs.yml                  the 2 isolated VRFs (loopback id, RD, networks, route-maps)
+vars/bgp.yml                   BFD timers, eBGP multihop TTL
+templates/device_freeform.j2   ★ generates each device's full CLI from the topology
+playbooks/00_create_fabric     dcnm_fabric  → External fabric
+playbooks/01_add_inventory     dcnm_inventory → 4 cores as core_router
+playbooks/02_config            dcnm_policy → per-device freeform (the workhorse)
+playbooks/03_deploy            confirm/query deployed policies
+playbooks/site.yml             imports 00..03 in order
 ```
+
+To change the topology, **edit `vars/topology.yml`** — the per-device CLI is generated
+from it, so addresses/links/ASNs live in exactly one place.
 
 ## Prerequisites
 
 - A reachable controller VIP, either:
   - **NDFC 12.2.x** on Nexus Dashboard 2.x/3.x, or
-  - **Nexus Dashboard 4.x** (unified ND — the Fabric Controller is now a persona of ND,
-    not a separate 12.x service). Validated target is ND 4.1.1g via the legacy APIs.
-    Requires `cisco.dcnm >= 3.9.0` and `ansible_httpapi_login_domain` set (see below).
-- The two N9K cores already onboarded to ND/NDFC reachability (mgmt IP + credentials).
+  - **Nexus Dashboard 4.x** (unified ND — Fabric Controller is a persona of ND, not a
+    separate 12.x service). Validated target ND 4.1.1g via legacy APIs; requires
+    `cisco.dcnm >= 3.9.0` and `ansible_httpapi_login_domain` set.
+- All four N9Ks onboarded to ND/NDFC reachability (mgmt IP + credentials).
 - `ansible-core >= 2.15`, Python `requests`.
 - `ansible-galaxy collection install -r requirements.yml`
 
 ## Configure
 
-1. Fill in `vars/vrfs.yml`, `vars/bgp.yml`, `host_vars/core1.yml`, `host_vars/core2.yml`,
-   and `fabric_vars/core_fabric.yml` with your real topology.
+1. Fill in `vars/topology.yml` (devices, mgmt IPs, serials, loopbacks, link IPs, ASNs),
+   `vars/vrfs.yml`, `vars/bgp.yml`, and `fabric_vars/core_fabric.yml`.
 2. Set the controller address in `inventory/hosts.yml` / `group_vars/ndfc.yml`.
 3. Create your secrets file from the template and encrypt it:
    ```
@@ -72,47 +94,45 @@ playbooks/00..05 + site.yml  ordered deployment
    ansible-vault encrypt vault/secrets.yml
    ansible-vault edit vault/secrets.yml
    ```
-   `vault/secrets.yml` is **gitignored** — only the `.example` template is committed,
-   so real credentials are never pushed.
+   `vault/secrets.yml` is **gitignored** — only the `.example` template is committed.
 
 ## Run
 
 ```
-# Install collections
 ansible-galaxy collection install -r requirements.yml
 
-# Validate
 ansible-playbook playbooks/site.yml --syntax-check
 ansible-playbook playbooks/site.yml --check --ask-vault-pass     # dry run vs NDFC
-
-# Deploy
-ansible-playbook playbooks/site.yml --ask-vault-pass
+ansible-playbook playbooks/site.yml --ask-vault-pass             # deploy
 ```
 
 Individual stages can be run on their own (`playbooks/00_create_fabric.yml`, etc.).
 
 ## Verify after deploy
 
-- In NDFC: fabric created, both cores in `core_router` role, sub-interfaces + VRF-Lite
-  links present, freeform policies attached, deploy succeeded.
+- In NDFC: fabric created, all four cores in `core_router` role, freeform policies
+  attached, deploy succeeded.
 - On a switch:
-  - `show ip bgp summary` — iBGP up between cores.
-  - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — eBGP up per VRF.
+  - `show ip bgp summary` — intra-DC iBGP (global) up; `show bfd neighbors` — sessions Up.
+  - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — per-VRF iBGP (intra-DC) and eBGP
+    (inter-DC) up.
+  - `show ip route 10.255.x.x` — ECMP statics to the peer loopback over both intra-DC links.
   - `show running-config | section 'vrf context'` — **no** `route-target import/export`
     (isolation confirmed).
 
 ## Risks / notes
 
-1. `cisco.dcnm` 3.x assumed. `fabric_type` casing (`External`) and link template names
-   (`ext_fabric_setup`) are version-sensitive — verify on your release.
-   - **Nexus Dashboard 4.x:** there is no "NDFC 4.x" — NDFC was 12.x; ND 4.x is the
-     converged platform that absorbs the Fabric Controller. The `cisco.dcnm` modules
-     still drive it through the **legacy API** layer (added in collection 3.9.0), so the
-     playbooks here work unchanged *provided* you bump the collection (`>=3.9.0`) and set
-     `ansible_httpapi_login_domain`. ND 4.0 specifically is pre-migration/early; 4.1.1g is
-     the validated target. For ND platform-level onboarding you may also want the companion
-     `cisco.nd` collection.
+1. `cisco.dcnm` version-sensitivity: `fabric_type` casing (`External`) is version-sensitive
+   — verify on your release.
+   - **Nexus Dashboard 4.x:** there is no "NDFC 4.x" — ND 4.x is the converged platform that
+     absorbs the Fabric Controller. `cisco.dcnm` drives it via the **legacy API** layer
+     (added in collection 3.9.0); the playbooks work unchanged provided you use `>=3.9.0`
+     and set `ansible_httpapi_login_domain`. ND 4.0 is pre-migration; 4.1.1g is validated.
 2. The External fabric is light-touch: NDFC stores/deploys freeform but does **not** validate
    BGP correctness. Policy `description` keys are kept stable so re-runs stay idempotent.
-3. Upstream/downstream eBGP peers are assumed external to this fabric. If they are also
-   NDFC-managed N9Ks, they need their own fabric + `ext_fabric_setup` links on the far end.
+3. **BFD on loopback (multihop) sessions:** the link-level `bfd interval` gives single-hop
+   BFD on each transit link, and `neighbor … bfd` enables BFD for the session. On some NX-OS
+   platforms multihop BFD for BGP additionally needs `bfd multihop` enabled — verify on your
+   hardware. Fast intra-DC reconvergence also comes from the ECMP static pair.
+4. AS numbers (65001/65002), loopbacks and link subnets in `vars/topology.yml` are lab
+   placeholders — replace with your addressing.

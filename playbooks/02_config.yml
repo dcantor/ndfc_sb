@@ -1,0 +1,49 @@
+---
+# Stage 02 — the workhorse. Render templates/device_freeform.j2 per device and push
+# it as a switch_freeform policy via dcnm_policy. On an External fabric NDFC does not
+# auto-generate routing, so this single freeform delivers everything:
+#   * interfaces: loopback0 + per-VRF loopbacks, intra/inter L3 links, per-VRF
+#     dot1q sub-interfaces (VRF Lite hand-off) — all with BFD
+#   * vrf contexts for the two isolated VRFs (NO route-target import/export)
+#   * static routes for loopback-based peering reachability (ECMP intra-DC)
+#   * BGP: loopback-based iBGP within each DC, eBGP between DCs, per VRF + global,
+#     BFD on every neighbor
+#
+# Idempotency: each policy uses a stable `description`; dcnm_policy updates the
+# existing policy on re-run instead of creating duplicates.
+- name: Push per-device BGP + VRF + BFD freeform
+  hosts: ndfc
+  gather_facts: false
+  vars_files:
+    - ../vault/secrets.yml
+    - ../vars/topology.yml
+    - ../vars/vrfs.yml
+    - ../vars/bgp.yml
+  vars:
+    mtu: "{{ default_mtu }}"
+  tasks:
+    - name: Render + push freeform per device
+      vars:
+        dev: "{{ item }}"
+        device_conf: "{{ lookup('template', '../templates/device_freeform.j2') }}"
+      cisco.dcnm.dcnm_policy:
+        fabric: "{{ fabric_name }}"
+        state: merged
+        config:
+          - name: switch_freeform
+            create_additional_policy: false      # update existing on re-run
+            priority: 500
+            description: "ndfc_sb device config ({{ item }})"
+            policy_vars:
+              CONF: "{{ device_conf }}"
+        deploy: true                             # push the config to the switch
+        switch:
+          - ip: "{{ devices[item].mgmt_ip }}"
+      loop: "{{ devices.keys() | list }}"
+      loop_control:
+        label: "{{ item }}"
+      register: policy_result
+
+    - name: Show policy result
+      ansible.builtin.debug:
+        var: policy_result

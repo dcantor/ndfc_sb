@@ -1,0 +1,123 @@
+---
+# ============================================================================
+# Single source of truth for the 4-device / 2-DC topology.
+# Per-device config (interfaces, loopbacks, statics, BGP) is GENERATED from this
+# model by templates/device_freeform.j2 — edit here, not in the rendered CLI.
+#
+#   DC1 (AS 65001): dc1-core1, dc1-core2   — iBGP, 2 links between them
+#   DC2 (AS 65002): dc2-core1, dc2-core2   — iBGP, 2 links between them
+#   Inter-DC (eBGP, "square"): dc1-core1<->dc2-core1, dc1-core2<->dc2-core2
+#
+# All BGP is loopback-based:
+#   * global table  -> loopback0
+#   * each VRF      -> its own loopback (loopback_id from vars/vrfs.yml)
+# Loopback reachability is provided by static routes (BGP-only, no IGP); over the
+# 2 intra-DC links these are ECMP. BFD is enabled on every transit link/sub-int
+# and on every BGP neighbor.
+# ============================================================================
+
+datacenters:
+  dc1: {asn: 65001}
+  dc2: {asn: 65002}
+
+# Per-device identity + loopbacks. vrf_lo keys must match vrf names in vars/vrfs.yml.
+devices:
+  dc1-core1:
+    dc: dc1
+    mgmt_ip: "10.0.1.11"
+    serial_number: "FDO00000001"
+    lo0: "10.255.1.1"
+    vrf_lo: {VRF_A: "10.255.11.1", VRF_B: "10.255.21.1"}
+  dc1-core2:
+    dc: dc1
+    mgmt_ip: "10.0.1.12"
+    serial_number: "FDO00000002"
+    lo0: "10.255.1.2"
+    vrf_lo: {VRF_A: "10.255.11.2", VRF_B: "10.255.21.2"}
+  dc2-core1:
+    dc: dc2
+    mgmt_ip: "10.0.2.11"
+    serial_number: "FDO00000003"
+    lo0: "10.255.2.1"
+    vrf_lo: {VRF_A: "10.255.12.1", VRF_B: "10.255.22.1"}
+  dc2-core2:
+    dc: dc2
+    mgmt_ip: "10.0.2.12"
+    serial_number: "FDO00000004"
+    lo0: "10.255.2.2"
+    vrf_lo: {VRF_A: "10.255.12.2", VRF_B: "10.255.22.2"}
+
+# Transit links. Each link defines a global /31 (a_ip/b_ip) plus one dot1q
+# sub-interface per VRF (a_ip/b_ip per VRF). type: intra -> iBGP, inter -> eBGP.
+links:
+  # ---------- DC1 intra-DC (2 links, iBGP) ----------
+  - type: intra
+    a: dc1-core1
+    a_intf: "Ethernet1/1"
+    a_ip: "10.1.0.0"
+    b: dc1-core2
+    b_intf: "Ethernet1/1"
+    b_ip: "10.1.0.1"
+    mask: 31
+    subifs:
+      VRF_A: {dot1q: 10, a_ip: "10.1.10.0", b_ip: "10.1.10.1", mask: 31}
+      VRF_B: {dot1q: 20, a_ip: "10.1.20.0", b_ip: "10.1.20.1", mask: 31}
+  - type: intra
+    a: dc1-core1
+    a_intf: "Ethernet1/2"
+    a_ip: "10.1.0.2"
+    b: dc1-core2
+    b_intf: "Ethernet1/2"
+    b_ip: "10.1.0.3"
+    mask: 31
+    subifs:
+      VRF_A: {dot1q: 10, a_ip: "10.1.11.0", b_ip: "10.1.11.1", mask: 31}
+      VRF_B: {dot1q: 20, a_ip: "10.1.21.0", b_ip: "10.1.21.1", mask: 31}
+
+  # ---------- DC2 intra-DC (2 links, iBGP) ----------
+  - type: intra
+    a: dc2-core1
+    a_intf: "Ethernet1/1"
+    a_ip: "10.2.0.0"
+    b: dc2-core2
+    b_intf: "Ethernet1/1"
+    b_ip: "10.2.0.1"
+    mask: 31
+    subifs:
+      VRF_A: {dot1q: 10, a_ip: "10.2.10.0", b_ip: "10.2.10.1", mask: 31}
+      VRF_B: {dot1q: 20, a_ip: "10.2.20.0", b_ip: "10.2.20.1", mask: 31}
+  - type: intra
+    a: dc2-core1
+    a_intf: "Ethernet1/2"
+    a_ip: "10.2.0.2"
+    b: dc2-core2
+    b_intf: "Ethernet1/2"
+    b_ip: "10.2.0.3"
+    mask: 31
+    subifs:
+      VRF_A: {dot1q: 10, a_ip: "10.2.11.0", b_ip: "10.2.11.1", mask: 31}
+      VRF_B: {dot1q: 20, a_ip: "10.2.21.0", b_ip: "10.2.21.1", mask: 31}
+
+  # ---------- Inter-DC DCI (square, 2 links, eBGP) ----------
+  - type: inter
+    a: dc1-core1
+    a_intf: "Ethernet1/3"
+    a_ip: "10.0.0.0"
+    b: dc2-core1
+    b_intf: "Ethernet1/3"
+    b_ip: "10.0.0.1"
+    mask: 31
+    subifs:
+      VRF_A: {dot1q: 10, a_ip: "10.0.10.0", b_ip: "10.0.10.1", mask: 31}
+      VRF_B: {dot1q: 20, a_ip: "10.0.20.0", b_ip: "10.0.20.1", mask: 31}
+  - type: inter
+    a: dc1-core2
+    a_intf: "Ethernet1/3"
+    a_ip: "10.0.0.2"
+    b: dc2-core2
+    b_intf: "Ethernet1/3"
+    b_ip: "10.0.0.3"
+    mask: 31
+    subifs:
+      VRF_A: {dot1q: 10, a_ip: "10.0.10.2", b_ip: "10.0.10.3", mask: 31}
+      VRF_B: {dot1q: 20, a_ip: "10.0.20.2", b_ip: "10.0.20.3", mask: 31}
