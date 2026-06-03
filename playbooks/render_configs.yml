@@ -1,0 +1,42 @@
+---
+# Render each device's CLI to rendered_configs/<device>.cfg for OFFLINE review —
+# exactly the freeform that 02_config.yml pushes, but written to disk instead of NDFC.
+# Pure local render: no controller, no credentials, no connection. Run with:
+#   ansible-playbook playbooks/render_configs.yml
+#
+# Diff against the running config or review in a PR before deploying.
+- name: Render device CLI to files for offline review
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+    - ../vars/topology.yml
+    - ../vars/vrfs.yml
+    - ../vars/bgp.yml
+  vars:
+    mtu: "{{ default_mtu }}"
+    output_dir: "{{ playbook_dir }}/../rendered_configs"
+  tasks:
+    - name: Ensure output directory exists
+      ansible.builtin.file:
+        path: "{{ output_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render per-device freeform CLI to a file
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/device_freeform.j2"
+        dest: "{{ output_dir }}/{{ item }}.cfg"
+        mode: "0644"
+      vars:
+        dev: "{{ item }}"
+      loop: "{{ devices.keys() | list }}"
+      loop_control:
+        label: "{{ item }} -> rendered_configs/{{ item }}.cfg"
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: >-
+          Rendered {{ devices | length }} device configs to
+          {{ output_dir | realpath }}/ — review the .cfg files offline.

@@ -69,6 +69,7 @@ playbooks/00_create_fabric     dcnm_fabric  → External fabric
 playbooks/01_add_inventory     dcnm_inventory → 4 cores as core_router
 playbooks/02_config            dcnm_policy → per-device freeform (the workhorse)
 playbooks/03_deploy            confirm/query deployed policies
+playbooks/render_configs.yml   render each device's CLI to rendered_configs/ (offline, no NDFC)
 playbooks/site.yml             imports 00..03 in order
 ```
 
@@ -110,6 +111,18 @@ ansible-playbook playbooks/site.yml --ask-vault-pass             # deploy
 ```
 
 Individual stages can be run on their own (`playbooks/00_create_fabric.yml`, etc.).
+
+### Offline review
+
+To see the exact CLI that would be pushed — without touching NDFC — render it to files:
+
+```
+ansible-playbook playbooks/render_configs.yml
+```
+
+This writes `rendered_configs/<device>.cfg` (one per device) for offline review or PR diff.
+It needs no controller or credentials. The output directory is gitignored by default
+(remove the `rendered_configs/` line in `.gitignore` to track/diff rendered configs).
 
 ## Verify after deploy
 
