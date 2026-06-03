@@ -122,3 +122,48 @@ links:
     subifs:
       VRF_A: {dot1q: 10, a_ip: "10.0.10.2", b_ip: "10.0.10.3", mask: 31}
       VRF_B: {dot1q: 20, a_ip: "10.0.20.2", b_ip: "10.0.20.3", mask: 31}
+
+# ============================================================================
+# Downstream VRF-Lite hand-off to the DC core switches (next tier down).
+# Our-side-only: these define interfaces + per-VRF sub-interfaces + eBGP on the
+# four core routers; the downstream switches are EXTERNAL (configured elsewhere).
+# eBGP is single-hop on the directly-connected addresses, per VRF + global, BFD.
+# Full mesh: 2 downstream switches per site, each core links to BOTH (4 links/site).
+#   core_ip = our side, ds_ip = downstream neighbor, ds_asn = downstream AS.
+# ============================================================================
+downstream_links:
+  # ---------- DC1 (downstream AS 65011): dc1-ds1, dc1-ds2 ----------
+  - {core: dc1-core1, core_intf: "Ethernet1/4", core_ip: "10.1.4.0", mask: 31,
+     ds_name: dc1-ds1, ds_ip: "10.1.4.1", ds_asn: 65011,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.1.110.0", ds_ip: "10.1.110.1", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.1.120.0", ds_ip: "10.1.120.1", mask: 31}}}
+  - {core: dc1-core1, core_intf: "Ethernet1/5", core_ip: "10.1.4.2", mask: 31,
+     ds_name: dc1-ds2, ds_ip: "10.1.4.3", ds_asn: 65011,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.1.110.2", ds_ip: "10.1.110.3", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.1.120.2", ds_ip: "10.1.120.3", mask: 31}}}
+  - {core: dc1-core2, core_intf: "Ethernet1/4", core_ip: "10.1.4.4", mask: 31,
+     ds_name: dc1-ds1, ds_ip: "10.1.4.5", ds_asn: 65011,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.1.110.4", ds_ip: "10.1.110.5", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.1.120.4", ds_ip: "10.1.120.5", mask: 31}}}
+  - {core: dc1-core2, core_intf: "Ethernet1/5", core_ip: "10.1.4.6", mask: 31,
+     ds_name: dc1-ds2, ds_ip: "10.1.4.7", ds_asn: 65011,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.1.110.6", ds_ip: "10.1.110.7", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.1.120.6", ds_ip: "10.1.120.7", mask: 31}}}
+
+  # ---------- DC2 (downstream AS 65021): dc2-ds1, dc2-ds2 ----------
+  - {core: dc2-core1, core_intf: "Ethernet1/4", core_ip: "10.2.4.0", mask: 31,
+     ds_name: dc2-ds1, ds_ip: "10.2.4.1", ds_asn: 65021,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.2.110.0", ds_ip: "10.2.110.1", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.2.120.0", ds_ip: "10.2.120.1", mask: 31}}}
+  - {core: dc2-core1, core_intf: "Ethernet1/5", core_ip: "10.2.4.2", mask: 31,
+     ds_name: dc2-ds2, ds_ip: "10.2.4.3", ds_asn: 65021,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.2.110.2", ds_ip: "10.2.110.3", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.2.120.2", ds_ip: "10.2.120.3", mask: 31}}}
+  - {core: dc2-core2, core_intf: "Ethernet1/4", core_ip: "10.2.4.4", mask: 31,
+     ds_name: dc2-ds1, ds_ip: "10.2.4.5", ds_asn: 65021,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.2.110.4", ds_ip: "10.2.110.5", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.2.120.4", ds_ip: "10.2.120.5", mask: 31}}}
+  - {core: dc2-core2, core_intf: "Ethernet1/5", core_ip: "10.2.4.6", mask: 31,
+     ds_name: dc2-ds2, ds_ip: "10.2.4.7", ds_asn: 65021,
+     subifs: {VRF_A: {dot1q: 10, core_ip: "10.2.110.6", ds_ip: "10.2.110.7", mask: 31},
+              VRF_B: {dot1q: 20, core_ip: "10.2.120.6", ds_ip: "10.2.120.7", mask: 31}}}

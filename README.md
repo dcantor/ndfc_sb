@@ -19,9 +19,17 @@ Controller) using the `cisco.dcnm` collection.
 
 - **2 devices per DC**, with **2 links** between the pair, **iBGP** peered.
 - **eBGP between the data centers**, "square" DCI (2 links: core1↔core1, core2↔core2).
+- **Downstream VRF-Lite hand-off:** each core links to **both** downstream DC core switches
+  per site (full mesh, 4 links/site) with **eBGP** per VRF + global. The downstream switches
+  are external (configured elsewhere); only the cores' side is generated here.
 - **BFD for BGP on every link** (and every BGP neighbor).
-- **Two VRFs via VRF Lite, fully isolated**, extended end-to-end across both DCs.
+- **Two VRFs via VRF Lite, fully isolated**, extended end-to-end across both DCs **and down
+  to the DC core switches**.
 - **No EVPN / no VXLAN** — plain IP routing only.
+
+Each core therefore runs **12 BGP sessions**: 3 intra-DC iBGP (global + 2 VRF, on loopbacks),
+3 inter-DC eBGP (global + 2 VRF, on DCI addresses), and 6 downstream eBGP (global + 2 VRF to
+each of 2 downstream switches, on the hand-off addresses) — all BFD-enabled.
 
 ## Design
 
@@ -63,7 +71,7 @@ group_vars/all.yml             fabric_name, fabric_bgp_as, default_mtu
 group_vars/ndfc.yml            httpapi connection vars (+ login_domain)
 vault/secrets.yml(.example)    NDFC creds + device creds (real file gitignored)
 fabric_vars/core_fabric.yml    External fabric definition
-vars/topology.yml              ★ single source of truth: 4 devices, ASNs, all links/sub-ints
+vars/topology.yml              ★ single source of truth: 4 devices, ASNs, links, downstream_links
 vars/vrfs.yml                  the 2 isolated VRFs (loopback id, RD, networks, route-maps)
 vars/bgp.yml                   BFD timers, eBGP multihop TTL, OSPF process/area
 templates/device_freeform.j2   ★ generates each device's full CLI from the topology
@@ -136,8 +144,8 @@ It needs no controller or credentials. The output directory is gitignored by def
   - `show ip route 10.255.1.2` — peer `loopback0` learned via OSPF, ECMP over both intra links.
   - `show ip bgp summary` — intra-DC iBGP (global, on loopbacks) up, and inter-DC eBGP
     (global, on the DCI link address) up.
-  - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — per-VRF iBGP (intra-DC, loopbacks) and
-    eBGP (inter-DC, on the DCI sub-interface address) up.
+  - `show ip bgp vrf VRF_A summary` / `vrf VRF_B` — per-VRF iBGP (intra-DC, loopbacks), eBGP
+    (inter-DC, DCI sub-int) and eBGP (downstream, hand-off sub-int) all up.
   - `show running-config | section 'vrf context'` — **no** `route-target import/export`
     (isolation confirmed).
 

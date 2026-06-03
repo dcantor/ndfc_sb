@@ -74,6 +74,25 @@ interface {{ o.my_intf }}.{{ su.dot1q }}
   no shutdown
 {%   endfor %}
 {% endfor %}
+{% for dl in downstream_links | default([]) if dl.core == dev %}
+interface {{ dl.core_intf }}
+  description downstream link to {{ dl.ds_name }}
+  no switchport
+  mtu {{ mtu }}
+  ip address {{ dl.core_ip }}/{{ dl.mask }}
+  bfd interval {{ bfd.interval }} min_rx {{ bfd.min_rx }} multiplier {{ bfd.multiplier }}
+  no shutdown
+{%   for vrf in vrfs %}
+{%-    set su = dl.subifs[vrf.name] %}
+interface {{ dl.core_intf }}.{{ su.dot1q }}
+  description {{ vrf.name }} downstream hand-off to {{ dl.ds_name }}
+  encapsulation dot1q {{ su.dot1q }}
+  vrf member {{ vrf.name }}
+  ip address {{ su.core_ip }}/{{ su.mask }}
+  bfd interval {{ bfd.interval }} min_rx {{ bfd.min_rx }} multiplier {{ bfd.multiplier }}
+  no shutdown
+{%   endfor %}
+{% endfor %}
 !
 ! ===== VRF contexts (fully isolated — NO route-target import/export) =====
 {% for vrf in vrfs %}
@@ -119,6 +138,14 @@ router bgp {{ my_asn }}
     bfd
     address-family ipv4 unicast
 {% endfor %}
+{% for dl in downstream_links | default([]) if dl.core == dev %}
+  ! eBGP (downstream) to {{ dl.ds_name }} — directly-connected, single-hop
+  neighbor {{ dl.ds_ip }}
+    remote-as {{ dl.ds_asn }}
+    description eBGP-to-{{ dl.ds_name }}
+    bfd
+    address-family ipv4 unicast
+{% endfor %}
 {% for vrf in vrfs %}
   ! ----- {{ vrf.name }} -----
   vrf {{ vrf.name }}
@@ -145,6 +172,17 @@ router bgp {{ my_asn }}
     neighbor {{ peer_su_ip }}
       remote-as {{ datacenters[devices[o.peer].dc].asn }}
       description eBGP-{{ vrf.name }}-to-{{ o.peer }}
+      bfd
+      address-family ipv4 unicast
+        route-map {{ vrf.route_maps.inbound }} in
+        route-map {{ vrf.route_maps.outbound }} out
+{%   endfor %}
+{%   for dl in downstream_links | default([]) if dl.core == dev %}
+{%-    set su = dl.subifs[vrf.name] %}
+    ! eBGP (downstream) {{ vrf.name }} to {{ dl.ds_name }} — VRF-Lite hand-off (single-hop)
+    neighbor {{ su.ds_ip }}
+      remote-as {{ dl.ds_asn }}
+      description eBGP-{{ vrf.name }}-to-{{ dl.ds_name }}
       bfd
       address-family ipv4 unicast
         route-map {{ vrf.route_maps.inbound }} in
